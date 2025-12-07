@@ -4,6 +4,8 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from model import * 
 from utils import * 
+import matplotlib.pyplot as plt # 添加1
+
 
 @torch.no_grad()
 def test_dense(model, batch_x, batch_edge, batch_label, criterion, args, ):
@@ -123,6 +125,11 @@ def dense_training(args, gnn_explain_training=False):
     smallest_val_loss = float('inf')
     smallest_val_loss_corresponding_test_acc = 0
 
+    # 添加2，收集损失
+    train_loss_history = []
+    val_loss_history = []
+    # 添加结束
+
     for epoch in range(args.num_epochs):
         test_correct, test_total = 0, 0 
         train_correct, train_total = 0, 0
@@ -181,6 +188,12 @@ def dense_training(args, gnn_explain_training=False):
         training_acc = train_correct/train_total
         test_acc = test_correct/test_total
         val_acc = val_correct/val_total
+
+        # 添加3，记录损失历史
+        train_loss_history.append(train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss))
+        val_loss_history.append(val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss))
+        # 添加结束
+
         if args.verbose:
             print(f"Epoch {epoch}: train_acc {training_acc:.4g}, val_acc {val_acc:.4g}, test_acc {test_acc:.4g}, val_loss {val_loss:.4g}, train_loss {train_loss:.4g}")
         
@@ -213,4 +226,26 @@ def dense_training(args, gnn_explain_training=False):
         smallest_val_loss = smallest_val_loss.item()
     print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, Smallest Validation Loss {smallest_val_loss}")
     
+    # 添加4，绘制损失曲线
+    # ========== 绘制损失曲线 ==========
+    if not os.path.exists(args.log_dir):
+        os.makedirs(args.log_dir)
+    
+    plt.figure(figsize=(12, 6))
+    plt.plot(train_loss_history, label='Training Loss', linewidth=2)
+    plt.plot(val_loss_history, label='Validation Loss', linewidth=2)
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Loss', fontsize=12)
+    plt.title(f'Loss Curve - {args.label_col} (Split {args.dataSplit}, Iter {args.curr_idx})', fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    
+    # 保存图像
+    plot_filename = f"loss_curve_split{args.dataSplit}_iter{args.curr_idx}.png"
+    plot_path = os.path.join(args.log_dir, plot_filename)
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    print(f"Loss curve saved to {plot_path}")
+    plt.close()
+    # 添加结束
+
     return smallest_val_loss, smallest_val_loss_corresponding_test_acc
