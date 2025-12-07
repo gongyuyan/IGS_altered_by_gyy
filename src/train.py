@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from model import * 
 from utils import * 
-import matplotlib.pyplot as plt # 添加1
+import matplotlib.pyplot as plt # 添加1.1
 
 
 @torch.no_grad()
@@ -124,11 +124,9 @@ def dense_training(args, gnn_explain_training=False):
     
     smallest_val_loss = float('inf')
     smallest_val_loss_corresponding_test_acc = 0
-
-    # 添加2，收集损失
-    train_loss_history = []
-    val_loss_history = []
-    # 添加结束
+    
+    train_loss_history = [] # 添加1.2.1，收集损失
+    val_loss_history = [] # 添加1.2.2，收集损失
 
     for epoch in range(args.num_epochs):
         test_correct, test_total = 0, 0 
@@ -137,6 +135,8 @@ def dense_training(args, gnn_explain_training=False):
 
         val_loss = 0
         train_loss = 0 
+        val_loss_count = 0  # 添加2.1，计数 validation batch 数
+        train_loss_count = 0  # 添加2.2，计数 training batch 数
         
         model.train()
         for batch_idx, batch in enumerate(train_loader):
@@ -150,6 +150,7 @@ def dense_training(args, gnn_explain_training=False):
             loss.backward()
             optimizer.step()
             train_loss += loss 
+            train_loss_count += 1  # 添加2.3：计数
             
             # if args.verbose:
             #     print(f"Epoch {epoch} Batch {batch_idx}: training loss {loss}")
@@ -175,6 +176,7 @@ def dense_training(args, gnn_explain_training=False):
             val_correct += curr_correct
             val_total += curr_total
             val_loss += curr_valLoss
+            val_loss_count += 1  # 添加2.4：计数
         for batch in train_loader:
             batch_edge, batch_label = batch 
             batch_size = batch_edge.shape[0]
@@ -184,15 +186,26 @@ def dense_training(args, gnn_explain_training=False):
             batch_edge=batch_edge, criterion=criterion, args=args, batch_label=batch_label)
             train_correct += curr_correct_train
             train_total += curr_total_train
+
+        # 添加2.5：平均化损失
+        train_loss = train_loss / train_loss_count if train_loss_count > 0 else train_loss
+        val_loss = val_loss / val_loss_count if val_loss_count > 0 else val_loss
+        # 添加结束
         
         training_acc = train_correct/train_total
         test_acc = test_correct/test_total
         val_acc = val_correct/val_total
 
-        # 添加3，记录损失历史
-        train_loss_history.append(train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss))
-        val_loss_history.append(val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss))
-        # 添加结束
+        # # 添加1.3，记录损失历史，第2次添加时这段换成下面的2.6
+        # train_loss_history.append(train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss))
+        # val_loss_history.append(val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss))
+        # # 添加结束
+        # 添加2.6，记录损失（转为标量）
+        train_loss_scalar = train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss)
+        val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
+        train_loss_history.append(train_loss_scalar)
+        val_loss_history.append(val_loss_scalar)
+        添加结束
 
         if args.verbose:
             print(f"Epoch {epoch}: train_acc {training_acc:.4g}, val_acc {val_acc:.4g}, test_acc {test_acc:.4g}, val_loss {val_loss:.4g}, train_loss {train_loss:.4g}")
@@ -226,7 +239,7 @@ def dense_training(args, gnn_explain_training=False):
         smallest_val_loss = smallest_val_loss.item()
     print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, Smallest Validation Loss {smallest_val_loss}")
     
-    # 添加4，绘制损失曲线
+    # 添加1.4，绘制损失曲线
     # ========== 绘制损失曲线 ==========
     if not os.path.exists(args.log_dir):
         os.makedirs(args.log_dir)
