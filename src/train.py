@@ -205,7 +205,7 @@ def dense_training(args, gnn_explain_training=False):
         val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
         train_loss_history.append(train_loss_scalar)
         val_loss_history.append(val_loss_scalar)
-        添加结束
+        # 添加结束
 
         if args.verbose:
             print(f"Epoch {epoch}: train_acc {training_acc:.4g}, val_acc {val_acc:.4g}, test_acc {test_acc:.4g}, val_loss {val_loss:.4g}, train_loss {train_loss:.4g}")
