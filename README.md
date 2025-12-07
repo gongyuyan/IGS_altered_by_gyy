@@ -1,39 +1,25 @@
-# Interpretable Sparsification of Brain Graphs: Better Practices and Effective Designs for Graph Neural Networks
+# 本科毕业论文
 
-This code implements the following paper: 
+是对以下论文的复现: 
 
 > [Interpretable Sparsification of Brain Graphs: Better Practices and Effective Designs for Graph Neural Networks](https://arxiv.org/abs/2306.14375)
 
+## 原项目地址
 
-## Requirement
-- PyTorch
-- PyTorch-Geometric
-- numpy
+> [GaotangLi/IGS: Code for "Interpretable Sparsification of Brain Graphs: Better Practices and Effective Designs for Graph Neural Networks"](https://github.com/GaotangLi/IGS)
 
-## Running our Method
 
-To train our model, run the following script: 
-```shell
-python ./src/main.py --method IGS --label_col $TASK_NAME --model $MODEL_NAME
+## 环境
+在kaggle中运行的
+```
+!pip install torch-scatter -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
+!pip install torch-sparse -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
+!pip install torch-cluster -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
+!pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
+!pip install torch-geometric
 ```
 
-where `--label_col` specifies the name of the task you want to work on and `--model` specifies the backbone model you want to use.
+## 修改
 
-## Data
+1.添加了绘制损失曲线图的命令来指导调参 
 
-We have provided the data in `./data` directory. To generate your own random data splits,
-you could use `process_data_splits` from `./data/data_splits.py` with specified arguments.
-The original raw data comes from the [Wu-Minn HCP 1200 subjects data release](https://www.humanconnectome.org/storage/app/media/documentation/s1200/HCP_S1200_Release_Reference_Manual.pdf), and we use pre-processed data from [ConnectomeDB](https://www.humanconnectome.org/software/connectomedb). To learn more about the task information, please visit this [link](https://wiki.humanconnectome.org/display/PublicData/HCP-YA+Data+Dictionary-+Updated+for+the+1200+Subject+Release). 
-
-## Citation 
-
-Please cite our paper if you find this code or our paper useful for your work:
-
-```
-@article{li2023interpretable,
-  title={Interpretable Sparsification of Brain Graphs: Better Practices and Effective Designs for Graph Neural Networks},
-  author={Li, Gaotang and Duda, Marlena and Zhang, Xiang and Koutra, Danai and Yan, Yujun},
-  journal={arXiv preprint arXiv:2306.14375},
-  year={2023}
-}
-```
