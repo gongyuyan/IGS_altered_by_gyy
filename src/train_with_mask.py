@@ -168,6 +168,7 @@ def gnn_mask_with_training(args):
         
         smallest_val_loss = float('inf')
         smallest_val_loss_corresponding_test_acc = 0
+        epochs_without_improvement = 0 # 添加1
 
          
         meta_mask = model.get_mask()
@@ -182,6 +183,8 @@ def gnn_mask_with_training(args):
 
             val_loss = 0
             test_loss = 0
+            train_loss = 0  # 添加2 
+
     
             model.train()
             for batch_idx, batch in enumerate(train_loader):
@@ -196,6 +199,7 @@ def gnn_mask_with_training(args):
                 torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=2)
                 optimizer.step()
 
+                train_loss += loss  # 添加3，累积训练损失
 
             for batch in test_loader:
                 batch_edge, batch_label = batch 
@@ -232,6 +236,12 @@ def gnn_mask_with_training(args):
             training_acc = train_correct/train_total
             test_acc = test_correct/test_total
             val_acc = val_correct/val_total
+
+            # 添加4，转换为标量用于打印
+            train_loss_scalar = train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss)
+            val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
+            # 添加结束
+            
             if args.verbose:
                 print(f"Epoch {epoch}: train_acc {training_acc:.4g}, val_acc {val_acc:.4g}, test_acc {test_acc:.4g}, val_loss {val_loss:.4g}, train_loss {train_loss:.4g}")
             
