@@ -135,8 +135,7 @@ def dense_training(args, gnn_explain_training=False):
 
         val_loss = 0
         train_loss = 0 
-        val_loss_count = 0  # 添加2.1，计数 validation batch 数
-        train_loss_count = 0  # 添加2.2，计数 training batch 数
+        
         
         model.train()
         for batch_idx, batch in enumerate(train_loader):
@@ -150,7 +149,6 @@ def dense_training(args, gnn_explain_training=False):
             loss.backward()
             optimizer.step()
             train_loss += loss 
-            train_loss_count += 1  # 添加2.3：计数
             
             # if args.verbose:
             #     print(f"Epoch {epoch} Batch {batch_idx}: training loss {loss}")
@@ -176,7 +174,6 @@ def dense_training(args, gnn_explain_training=False):
             val_correct += curr_correct
             val_total += curr_total
             val_loss += curr_valLoss
-            val_loss_count += 1  # 添加2.4：计数
         for batch in train_loader:
             batch_edge, batch_label = batch 
             batch_size = batch_edge.shape[0]
@@ -187,24 +184,14 @@ def dense_training(args, gnn_explain_training=False):
             train_correct += curr_correct_train
             train_total += curr_total_train
 
-        # 添加2.5：平均化损失
-        train_loss = train_loss / train_loss_count if train_loss_count > 0 else train_loss
-        val_loss = val_loss / val_loss_count if val_loss_count > 0 else val_loss
-        # 添加结束
         
         training_acc = train_correct/train_total
         test_acc = test_correct/test_total
         val_acc = val_correct/val_total
 
-        # # 添加1.3，记录损失历史，第2次添加时这段换成下面的2.6
-        # train_loss_history.append(train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss))
-        # val_loss_history.append(val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss))
-        # # 添加结束
-        # 添加2.6，记录损失（转为标量）
-        train_loss_scalar = train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss)
-        val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
-        train_loss_history.append(train_loss_scalar)
-        val_loss_history.append(val_loss_scalar)
+        # 添加1.3，记录损失历史，第2次添加时这段换成下面的2.6
+        train_loss_history.append(train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss))
+        val_loss_history.append(val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss))
         # 添加结束
 
         if args.verbose:
