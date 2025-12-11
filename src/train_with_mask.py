@@ -188,8 +188,7 @@ def gnn_mask_with_training(args):
             val_loss = 0
             test_loss = 0
             train_loss = 0  # 添加1.2 
-            train_loss_count = 0  # 添加2.2.1：计数 training batch
-            val_loss_count = 0    # 添加2.2.2：计数 validation batch
+
 
     
             model.train()
@@ -206,7 +205,6 @@ def gnn_mask_with_training(args):
                 optimizer.step()
 
                 train_loss += loss  # 添加1.3，累积训练损失
-                train_loss_count += 1  # 添加2.3：计数
 
 
             for batch in test_loader:
@@ -231,12 +229,8 @@ def gnn_mask_with_training(args):
                 val_correct += curr_correct
                 val_total += curr_total
                 val_loss += curr_valLoss
-                val_loss_count += 1  # 添加2.4：计数
 
-            # 添加2.5：计算平均损失
-            train_loss = train_loss / train_loss_count if train_loss_count > 0 else train_loss
-            val_loss = val_loss / val_loss_count if val_loss_count > 0 else val_loss
-            
+    
             for batch in train_loader:
                 batch_edge, batch_label = batch 
                 batch_size = batch_edge.shape[0]
@@ -251,11 +245,11 @@ def gnn_mask_with_training(args):
             test_acc = test_correct/test_total
             val_acc = val_correct/val_total
 
-            # # 添加1.4，转换为标量用于打印，第2次添加时换成下面的2.6
+            # # 添加1.4，转换为标量用于打印，第2次添加时换成下面的2.2
             # train_loss_scalar = train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss)
             # val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
             # # 添加结束
-            # 添加2.6：转换为标量用于记录和打印
+            # 添加2.2：转换为标量用于记录和打印
             train_loss_scalar = train_loss.item() if isinstance(train_loss, torch.Tensor) else float(train_loss)
             val_loss_scalar = val_loss.item() if isinstance(val_loss, torch.Tensor) else float(val_loss)
             train_loss_history.append(train_loss_scalar)
@@ -296,7 +290,7 @@ def gnn_mask_with_training(args):
     
         print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, Smallest Validation Loss {smallest_val_loss}")
 
-        # 添加2.7========== 绘制损失曲线 ==========
+        # 添加2.3========== 绘制损失曲线 ==========
         import matplotlib.pyplot as plt
         if not os.path.exists(args.log_dir):
             os.makedirs(args.log_dir)
