@@ -124,6 +124,7 @@ def dense_training(args, gnn_explain_training=False):
     
     smallest_val_loss = float('inf')
     smallest_val_loss_corresponding_test_acc = 0
+    epochs_without_improvement = 0 # 添加2.1
     
     train_loss_history = [] # 添加1.2.1，收集损失
     val_loss_history = [] # 添加1.2.2，收集损失
