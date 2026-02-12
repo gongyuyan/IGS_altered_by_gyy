@@ -15,8 +15,7 @@ def Gradient_iteration(args):
     model = args.model 
     exp_name = os.path.join(outer_exp_name, dataset, model, label_col, args.method, args.pruning_mode)
     print(f"* Currently Gradient Iteration...")
-    # model_name = f"best_val_model{curr_idx}.pth"
-    model_name = f"best_val_model{curr_idx-1}.pth" # 修改2.12
+    model_name = f"best_val_model{curr_idx}.pth"
     if args.debug_mode:
         print(f"load {model_name}")
 
