@@ -83,7 +83,7 @@ class IGSConfig:
     # ============== NEW: Granger Causality Parameters ==============
     
     use_causal_effect_regularization: Optional[bool] = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Enable Granger causality-based regularization during edge mask learning. "
                    "This separates edges into causal and confounding factors."
@@ -109,7 +109,7 @@ class IGSConfig:
     )
     
     use_conditional_mi: Optional[bool] = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Use Conditional Mutual Information (CMI) to compute causal relationships. "
                    "CMI measures I(alpha; Y | beta), identifying edges with causal effects "
@@ -118,7 +118,7 @@ class IGSConfig:
     )
     
     disentangle_latent_factors: Optional[bool] = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Learn disentangled latent representations (alpha, beta) similar to CI-GNN. "
                    "Alpha represents causally-relevant factors, beta represents confounders."
@@ -135,7 +135,7 @@ class IGSConfig:
     )
     
     enable_cmi_logging: Optional[bool] = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Enable logging of Conditional Mutual Information values during training. "
                    "Useful for monitoring causal factor learning."
