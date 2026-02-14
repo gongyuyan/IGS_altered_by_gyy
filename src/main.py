@@ -7,10 +7,8 @@ import sys
 import os 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.configurations import * 
-# 添加2.14.1
-from config.configurations_causal import IGSConfig
+from config.configurations_causal import IGSConfig as IGSConfigCausal
 from train_gradient_causal import Gradient_iteration_with_causality
-# 添加结束
 
 def run_exp(args):
     print(f"You are using {args.model} as the backbone!")
@@ -28,19 +26,21 @@ def meta_exp(args):
     
     # Configurations 
     if args.method == "IGS":
-        config = IGSConfig()
+        # NEW: Choose configuration based on causal flag
+        if args.use_causal_effect_regularization:
+            print("=" * 80)
+            print("🔥 Using Granger Causality-Enhanced IGS (CI-IGS)")
+            print("=" * 80)
+            config = IGSConfigCausal()
+        else:
+            print("Using Original IGS Configuration")
+            config = IGSConfig()
+        
         config_dict = vars(config)
                 
         for arg_name, arg_value in config_dict.items():
             setattr(args, arg_name, arg_value)
-
-    # 添加2.14.2
-    if args.use_causal_effect_regularization:
-        Gradient_iteration_with_causality(args)
-    else:
-        Gradient_iteration(args)  # 原始函数
-    # 添加结束
-        
+    
     print("args: ", args)
     
     if args.dataSplit == "general":
@@ -61,7 +61,7 @@ def meta_exp(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='GCN baseline')
+    parser = argparse.ArgumentParser(description='GCN baseline with optional Granger Causality')
 
     # Specify method, dataset, and target_task at first 
     parser.add_argument('--method', type=str, default='Normal', 
@@ -145,6 +145,25 @@ if __name__ == "__main__":
     parser.add_argument("--load_from_previous", action="store_true", default=False)
     parser.add_argument("--load_from_Saliency", action="store_true", default=False)
     parser.add_argument("--sigmoid_after_mask", action="store_true", default=False)
+    
+    # ============== NEW: Granger Causality Arguments ==============
+    parser.add_argument("--use_causal_effect_regularization", action="store_true", default=False,
+                       help="Enable Granger causality-based regularization")
+    parser.add_argument("--causal_lambda", type=float, default=0.05,
+                       help="Weight for causal effect regularization")
+    parser.add_argument("--causal_factor_split_ratio", type=float, default=0.5,
+                       help="Ratio to split edge mask into causal vs confounding factors")
+    parser.add_argument("--use_conditional_mi", action="store_true", default=False,
+                       help="Use Conditional Mutual Information to compute causal relationships")
+    parser.add_argument("--disentangle_latent_factors", action="store_true", default=False,
+                       help="Learn disentangled latent representations (alpha, beta)")
+    parser.add_argument("--causal_weighting_ratio", type=float, default=0.7,
+                       help="Weight ratio for causal vs confounding components in saliency weighting")
+    parser.add_argument("--enable_cmi_logging", action="store_true", default=False,
+                       help="Enable logging of Conditional Mutual Information values")
+    parser.add_argument("--cmi_threshold", type=float, default=0.01,
+                       help="Threshold for considering an edge as causally significant")
+    
     args = parser.parse_args()
     # print(args)
     meta_exp(args)
