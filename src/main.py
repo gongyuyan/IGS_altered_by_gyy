@@ -7,6 +7,10 @@ import sys
 import os 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.configurations import * 
+# 添加2.14.1
+from config.configurations_causal import IGSConfig
+from train_gradient_causal import Gradient_iteration_with_causality
+# 添加结束
 
 def run_exp(args):
     print(f"You are using {args.model} as the backbone!")
@@ -29,6 +33,14 @@ def meta_exp(args):
                 
         for arg_name, arg_value in config_dict.items():
             setattr(args, arg_name, arg_value)
+
+    # 添加2.14.2
+    if args.use_causal_effect_regularization:
+        Gradient_iteration_with_causality(args)
+    else:
+        Gradient_iteration(args)  # 原始函数
+    # 添加结束
+        
     print("args: ", args)
     
     if args.dataSplit == "general":
