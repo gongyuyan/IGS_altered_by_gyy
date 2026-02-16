@@ -7,6 +7,7 @@ from torch.nn import Sequential, Linear, ReLU
 from torch_geometric.nn import global_mean_pool
 from torch.nn import LayerNorm
 import numpy as np 
+from torch.nn import Parameter
 
 
 
@@ -684,3 +685,125 @@ class Dense_mask_training_GraphConv(Dense_GraphConv):
         x = torch.mean(x, dim=1)
         x = self.lins[0](x)
         return x
+
+class Dense_GAT(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, num_conv_layers,
+                 dropout, num_classes=2, heads=1):
+        super(Dense_GAT, self).__init__()
+
+        self.hidden_channels = hidden_channels
+        self.num_layers = num_conv_layers
+        self.dropout = dropout
+        self.heads = heads
+
+        self.W = torch.nn.ModuleList()
+        self.a = torch.nn.ParameterList()
+        self.norms = torch.nn.ModuleList()
+
+        self.W.append(torch.nn.Linear(in_channels, hidden_channels * heads, bias=False))
+        self.a.append(Parameter(torch.empty(size=(heads, 2 * hidden_channels))))
+        torch.nn.init.xavier_uniform_(self.a[-1].data)
+        self.norms.append(torch.nn.LayerNorm(in_channels))
+
+        for _ in range(num_conv_layers - 1):
+            self.W.append(torch.nn.Linear(hidden_channels * heads,
+                                          hidden_channels * heads, bias=False))
+            self.a.append(Parameter(torch.empty(size=(heads, 2 * hidden_channels))))
+            torch.nn.init.xavier_uniform_(self.a[-1].data)
+            self.norms.append(torch.nn.LayerNorm(hidden_channels * heads))
+
+        self.classifier = torch.nn.Linear(hidden_channels * heads, num_classes)
+
+    def forward(self, x, adj):
+
+        B, N, _ = x.shape
+
+        for layer in range(self.num_layers):
+
+            x = self.norms[layer](x)
+            Wh = self.W[layer](x)
+            Wh = Wh.view(B, N, self.heads, -1)
+
+            Wh_i = Wh.unsqueeze(2).repeat(1,1,N,1,1)
+            Wh_j = Wh.unsqueeze(1).repeat(1,N,1,1,1)
+
+            e = torch.cat([Wh_i, Wh_j], dim=-1)
+            e = torch.einsum('bijhd,hd->bijh', e, self.a[layer])
+            e = F.leaky_relu(e, 0.2)
+
+            mask = adj.unsqueeze(-1)
+            e = e.masked_fill(mask == 0, float('-inf'))
+
+            attention = F.softmax(e, dim=2)
+            attention = F.dropout(attention, p=self.dropout, training=self.training)
+
+            h = torch.einsum('bijh,bjhd->bihd', attention, Wh)
+            h = h.reshape(B, N, -1)
+
+            x = F.relu(h)
+
+        x = torch.mean(x, dim=1)
+        x = self.classifier(x)
+        return x
+
+class Dense_mask_training_GAT(Dense_GAT):
+
+    def __init__(self, in_channels, hidden_channels, num_conv_layers,
+                 dropout, device, args, previous_metamask_dir,
+                 num_classes=2):
+
+        super().__init__(in_channels, hidden_channels,
+                         num_conv_layers, dropout, num_classes)
+
+        self.args = args
+        self.device = device
+        self.previous_dir_meta_mask = previous_metamask_dir
+
+        self.edge_mask = None
+        self.__set_masks__()
+
+    def __set_masks__(self, num_nodes=100):
+
+        if self.args.xavier_normal_init:
+            self.edge_mask = torch.nn.Parameter(
+                torch.empty(num_nodes, num_nodes, requires_grad=True))
+            torch.nn.init.xavier_normal_(self.edge_mask)
+        else:
+            self.edge_mask = torch.nn.Parameter(
+                torch.randn(num_nodes, num_nodes, requires_grad=True))
+
+    def get_mask(self):
+        return self.edge_mask
+
+    def __loss__(self, raw_preds, label):
+        loss = F.cross_entropy(raw_preds, label.view(-1).long())
+
+        edge_mask = self.edge_mask
+
+        if self.args.mask_function == "Sigmoid":
+            edge_mask = edge_mask.sigmoid()
+        elif self.args.mask_function == "ReLU":
+            edge_mask = F.relu(edge_mask)
+
+        if self.args.l1_after_mask:
+            loss += self.args.regularizor_mask_training * torch.norm(edge_mask, p=1)
+
+        return loss
+
+    def forward(self, x, adj, batch_label):
+        raw_preds = self.model_forward(x, adj)
+        return self.__loss__(raw_preds, batch_label)
+
+    def model_forward(self, x, adj):
+
+        edge_mask = self.edge_mask
+
+        if self.args.mask_function == "Sigmoid":
+            edge_mask = edge_mask.sigmoid()
+        elif self.args.mask_function == "ReLU":
+            edge_mask = F.relu(edge_mask)
+
+        pruned_adj = torch.multiply(adj, edge_mask)
+
+        return super().forward(x, pruned_adj)
+
