@@ -45,7 +45,8 @@ class MyBrainDataset(InMemoryDataset):
             elif split == "test":
                 edge = np.load(os.path.join(exp_name, 'test_edge.npy'))
             else:
-                print("Please enter \{train, val, test\} for split, your prompt was incorrect!")
+                # print("Please enter \{train, val, test\} for split, your prompt was incorrect!")
+                print("Please enter {train, val, test} for split, your prompt was incorrect!") # 修改2.16
                 raise NotImplementedError 
 
         self.edge = edge 
