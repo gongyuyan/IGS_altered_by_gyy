@@ -135,6 +135,10 @@ if __name__ == "__main__":
     parser.add_argument("--load_from_previous", action="store_true", default=False)
     parser.add_argument("--load_from_Saliency", action="store_true", default=False)
     parser.add_argument("--sigmoid_after_mask", action="store_true", default=False)
+
+    # GAT specific args
+    parser.add_argument("--gat_heads", type=int, default=8, help="Number of attention heads for GAT")
+    
     args = parser.parse_args()
     # print(args)
     meta_exp(args)
