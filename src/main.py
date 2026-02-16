@@ -1,4 +1,3 @@
-# 备份
 import argparse
 from utils import *
 from train import * 
@@ -77,7 +76,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', type=str, default='./log_files')
     parser.add_argument("--debug_mode", action="store_true", default=False)
     parser.add_argument("--model", type=str, default="PlainGCN", 
-                        choices=["PlainGCN", "GIN", "GraphSage", "GraphConv"],
+                        choices=["PlainGCN", "GIN", "GraphSage", "GraphConv", "GAT"],
                         help="model backbone")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_processes", type=int, default=1)
