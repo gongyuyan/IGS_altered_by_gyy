@@ -2,7 +2,6 @@ import time
 import datetime
 from train import * 
 from train_gradient import *
-from train_gradient_causal import *  # NEW: Import causal version
 from train_with_mask import *
 
 def check_args(args):
@@ -31,38 +30,20 @@ def gnn_during_training(args):
         else:
             print("No Additional Loss Regularization!")
     
-    # NEW: Print causal mode status
-    if args.use_causal_effect_regularization:
-        print("=" * 80)
-        print("🔥 Causal Effect Regularization ENABLED")
-        print(f"   - Causal Lambda: {args.causal_lambda}")
-        print(f"   - Factor Split Ratio: {args.causal_factor_split_ratio}")
-        print(f"   - Causal Weighting Ratio: {args.causal_weighting_ratio}")
-        print("=" * 80)
-    
-    args.save_exp_name = f"pruneThreshold_{args.prune_threshold}_numConvLayers_{args.num_conv_layers}_hiddenChannels_{args.hidden_channels}_lr_{args.lr}_dropout_{args.dropout}_weightDecay_{args.weight_decay}"
+    args.save_exp_name = f"pruneThreshold_{args.prune_threshold}_numConvLayers_{args.num_conv_layers}_hiddenChannels_{args.hidden_channels}_lr_{args.lr}_dropout_{args.dropout}_weightDecay_{args.weight_decay}"    
     print("num_pruning_process: ", args.num_pruning_processes)
     print("\n")
-    
     validation_loss = []
     test_accs = []
-    
     for curr_process in range(args.num_pruning_processes):
         print(f"[Current idx {curr_process} Run]")
-        gnn_mask_with_training(args)  # Edge Mask
+        gnn_mask_with_training(args) # Edge Mask
         args.curr_idx += 1 
         end_pruning = time.time()
         
         if args.method == 'IGS':
             curr_val_loss, curr_test_acc = dense_training(args, gnn_explain_training=False)
-            
-            # NEW: Choose gradient iteration based on causal flag
-            if args.use_causal_effect_regularization:
-                print("Using Causal Gradient Iteration...")
-                Gradient_iteration_with_causality(args)
-            else:
-                print("Using Standard Gradient Iteration...")
-                Gradient_iteration(args)
+            Gradient_iteration(args)
         
         validation_loss.append(curr_val_loss)
         test_accs.append(curr_test_acc)
@@ -76,4 +57,4 @@ def gnn_during_training(args):
     validation_loss = np.array(validation_loss)
     smallest_index = np.argmin(validation_loss)
     test_acc = test_accs[smallest_index]
-    return test_acc
+    return test_acc 
