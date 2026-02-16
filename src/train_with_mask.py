@@ -158,10 +158,6 @@ def gnn_mask_with_training(args):
             model =  Dense_mask_training_GraphConv(typical_data.shape[1], args.hidden_channels,
                         args.num_conv_layers, args.dropout, device=device, args=args, 
                         previous_metamask_dir = previous_metamask_dir, num_classes=2).to(device)
-        elif args.model == "GAT":
-            model = Dense_mask_training_GAT(typical_data.shape[1], args.hidden_channels,
-                        args.num_conv_layers, args.dropout, device=device, args=args, 
-                        previous_metamask_dir = previous_metamask_dir, num_heads=args.gat_heads, num_classes=2).to(device)
         else:
             raise NotImplementedError
         
