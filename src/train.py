@@ -114,6 +114,9 @@ def dense_training(args, gnn_explain_training=False):
     elif args.model == "GraphConv":
         model = Dense_GraphConv(typical_data.shape[1], args.hidden_channels,
                     args.num_conv_layers, args.dropout, 2).to(device)
+    elif args.model == "GAT":
+        model = Dense_GAT(typical_data.shape[1], args.hidden_channels,
+                    args.num_conv_layers, args.dropout, num_heads=args.gat_heads, num_classes=2).to(device)
     else:
         raise NotImplementedError("Check your model argumets")
     
