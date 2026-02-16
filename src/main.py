@@ -1,3 +1,4 @@
+# 备份
 import argparse
 from utils import *
 from train import * 
@@ -76,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', type=str, default='./log_files')
     parser.add_argument("--debug_mode", action="store_true", default=False)
     parser.add_argument("--model", type=str, default="PlainGCN", 
-                        choices=["PlainGCN", "GIN", "GraphSage", "GraphConv", "GAT"],
+                        choices=["PlainGCN", "GIN", "GraphSage", "GraphConv"],
                         help="model backbone")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_processes", type=int, default=1)
@@ -135,10 +136,6 @@ if __name__ == "__main__":
     parser.add_argument("--load_from_previous", action="store_true", default=False)
     parser.add_argument("--load_from_Saliency", action="store_true", default=False)
     parser.add_argument("--sigmoid_after_mask", action="store_true", default=False)
-
-    # GAT specific args
-    parser.add_argument("--gat_heads", type=int, default=8, help="Number of attention heads for GAT")
-    
     args = parser.parse_args()
     # print(args)
     meta_exp(args)
