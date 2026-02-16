@@ -732,6 +732,7 @@ class Dense_GAT(torch.nn.Module):
 
         return x
 
+
 class Dense_mask_training_GAT(Dense_GAT):
 
     def __init__(self, in_channels, hidden_channels, num_conv_layers,
@@ -751,17 +752,18 @@ class Dense_mask_training_GAT(Dense_GAT):
     def __set_masks__(self, num_nodes=100):
 
         if self.args.xavier_normal_init:
-            self.edge_mask = torch.nn.Parameter(
-                torch.empty(num_nodes, num_nodes, requires_grad=True))
-            torch.nn.init.xavier_normal_(self.edge_mask)
+            mask = torch.empty(num_nodes, num_nodes)
+            torch.nn.init.xavier_normal_(mask)
         else:
-            self.edge_mask = torch.nn.Parameter(
-                torch.randn(num_nodes, num_nodes, requires_grad=True))
+            mask = torch.randn(num_nodes, num_nodes)
+
+        self.edge_mask = torch.nn.Parameter(mask.to(self.device))
 
     def get_mask(self):
         return self.edge_mask
 
     def __loss__(self, raw_preds, label):
+
         loss = F.cross_entropy(raw_preds, label.view(-1).long())
 
         edge_mask = self.edge_mask
@@ -772,7 +774,10 @@ class Dense_mask_training_GAT(Dense_GAT):
             edge_mask = F.relu(edge_mask)
 
         if self.args.l1_after_mask:
-            loss += self.args.regularizor_mask_training * torch.norm(edge_mask, p=1)
+            loss += (
+                self.args.regularizor_mask_training *
+                torch.norm(edge_mask, p=1)
+            )
 
         return loss
 
@@ -789,7 +794,7 @@ class Dense_mask_training_GAT(Dense_GAT):
         elif self.args.mask_function == "ReLU":
             edge_mask = F.relu(edge_mask)
 
-        pruned_adj = torch.multiply(adj, edge_mask)
+        # 自动 broadcast 到 batch 维度
+        pruned_adj = adj * edge_mask
 
         return super().forward(x, pruned_adj)
-
