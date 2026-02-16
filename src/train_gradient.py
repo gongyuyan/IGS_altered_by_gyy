@@ -56,22 +56,14 @@ def Gradient_iteration(args):
     saliency_map_0_builder = []
     saliency_map_1_builder = []
 
-    # 重要：保持training模式以保留梯度
-    loaded_model.train()
-
 
     for i in range(train_adj.shape[0]):  
-        curr_edge = torch.unsqueeze(torch.from_numpy(train_adj[i]).float().to(device), dim=0)
-        curr_edge.requires_grad = True
+        curr_edge = torch.unsqueeze(torch.from_numpy(train_adj[i]).float().to(device) ,dim=0)
+        curr_edge.requires_grad=True 
         curr_x = torch.unsqueeze(torch.eye(100), dim=0).to(device)
         
-        # 根据模型类型选择前向传播方式
-        if is_mask_model:
-            saliency_0 = iterative_saliency_map_mask_model(loaded_model, curr_edge, curr_x, 0)
-            saliency_1 = iterative_saliency_map_mask_model(loaded_model, curr_edge, curr_x, 1)
-        else:
-            saliency_0 = iterative_saliency_map(loaded_model, curr_edge, curr_x, 0)
-            saliency_1 = iterative_saliency_map(loaded_model, curr_edge, curr_x, 1)
+        saliency_0 = iterative_saliency_map(model=model, edge=curr_edge, x=curr_x, target=0)
+        saliency_1 = iterative_saliency_map(model=model, edge=curr_edge, x=curr_x, target=1)
         
         if args.generate_individual_mask_all:
             saliency_map_0_builder.append(saliency_0)
