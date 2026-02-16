@@ -215,13 +215,35 @@ def normalize_edge(edge):
     return edge
 
 def zero_gradient(x):
-    x.grad.data.zero_()
+    if x.grad is not None:
+        x.grad.data.zero_()
 
 def iterative_saliency_map(model, edge, x, target):
+    """标准模型的梯度计算"""
     edge.requires_grad = True
-    out = model(x, edge)
-    output_max = out[0, target]
-    output_max.backward()
+    # 确保梯度被保留
+    with torch.enable_grad():
+        out = model(x, edge)
+        output_max = out[0, target]
+        output_max.backward(retain_graph=True)
+    
+    if edge.grad is None:
+        raise RuntimeError(f"Edge gradient is None for target {target}")
+    edge_saliency = torch.squeeze(edge.grad.data.clone())
+    zero_gradient(edge)
+    return edge_saliency
+
+def iterative_saliency_map_mask_model(model, edge, x, target):
+    """带mask的模型的梯度计算（用于GAT等）"""
+    edge.requires_grad = True
+    # 确保梯度被保留
+    with torch.enable_grad():
+        out = model.model_forward(x, edge)
+        output_max = out[0, target]
+        output_max.backward(retain_graph=True)
+    
+    if edge.grad is None:
+        raise RuntimeError(f"Edge gradient is None for target {target}. Check if edge tensor is properly retained in computation graph.")
     edge_saliency = torch.squeeze(edge.grad.data.clone())
     zero_gradient(edge)
     return edge_saliency
