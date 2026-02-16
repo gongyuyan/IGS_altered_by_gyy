@@ -694,19 +694,21 @@ class Dense_GAT(torch.nn.Module):
         self.num_heads = num_heads
         self.convs = torch.nn.ModuleList()
         
+        # 第一层
         self.convs.append(
-            DenseGATConv(in_channels, hidden_channels, heads=num_heads, concat=True))
-        for _ in range(num_conv_layers - 1):
+            DenseGATConv(in_channels, hidden_channels, heads=num_heads, concat=True, dropout=dropout))
+        
+        # 中间层
+        for _ in range(num_conv_layers - 2):
             self.convs.append(
-                DenseGATConv(hidden_channels * num_heads, hidden_channels, heads=num_heads, concat=True))
-
-        self.conv_layer_norms = torch.nn.ModuleList()
-        self.conv_layer_norms.append(torch.nn.LayerNorm(100))
-        for _ in range(num_conv_layers - 1):
-            self.conv_layer_norms.append(LayerNorm(hidden_channels * num_heads))        
+                DenseGATConv(hidden_channels * num_heads, hidden_channels, heads=num_heads, concat=True, dropout=dropout))
+        
+        # 最后一层（单头，用于输出）
+        self.convs.append(
+            DenseGATConv(hidden_channels * num_heads, hidden_channels, heads=1, concat=False, dropout=dropout))
 
         self.lins = torch.nn.ModuleList()
-        self.lins.append(Linear(hidden_channels * num_heads, num_classes))
+        self.lins.append(Linear(hidden_channels, num_classes))
         self.dropout = dropout
 
     def reset_parameters(self):
@@ -714,13 +716,16 @@ class Dense_GAT(torch.nn.Module):
             conv.reset_parameters()
 
     def forward(self, x, adj):
+        for conv in self.convs[:-1]:
+            x = conv(x, adj)
+            x = F.elu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
         
-        for (conv, layernorm) in zip(self.convs, self.conv_layer_norms):
-                x = layernorm(x) 
-                x = conv(x, adj)
-                x = F.dropout(x, p=self.dropout, training=self.training)
-                x = F.elu(x)
+        # 最后一层
+        x = self.convs[-1](x, adj)
+        x = F.elu(x)
         
+        # 全局平均池化
         x = torch.mean(x, dim=1)
         x = self.lins[0](x)
         return x
@@ -836,12 +841,16 @@ class Dense_mask_training_GAT(Dense_GAT):
         
         pruned_adj = torch.multiply(adj, edge_mask)        
 
-        for (conv, layernorm) in zip(self.convs, self.conv_layer_norms):
-                x = layernorm(x) 
-                x = conv(x, pruned_adj)
-                x = F.dropout(x, p=self.dropout, training=self.training)
-                x = F.elu(x)
+        x_out = x
+        for conv in self.convs[:-1]:
+            x_out = conv(x_out, pruned_adj)
+            x_out = F.elu(x_out)
+            x_out = F.dropout(x_out, p=self.dropout, training=self.training)
         
-        x = torch.mean(x, dim=1)
-        x = self.lins[0](x)
-        return x
+        # 最后一层
+        x_out = self.convs[-1](x_out, pruned_adj)
+        x_out = F.elu(x_out)
+        
+        x_out = torch.mean(x_out, dim=1)
+        x_out = self.lins[0](x_out)
+        return x_out
