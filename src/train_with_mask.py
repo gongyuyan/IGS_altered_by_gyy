@@ -160,9 +160,13 @@ def gnn_mask_with_training(args):
                         previous_metamask_dir = previous_metamask_dir, num_classes=2).to(device)
         elif args.model == "GAT":
             model = Dense_mask_training_GAT(typical_data.shape[1], args.hidden_channels,
-                                            args.num_conv_layers, args.dropout, device=device,
-                                            args=args, previous_metamask_dir=previous_metamask_dir,
-                                            num_classes=2).to(device)
+                        args.num_conv_layers, args.dropout, device=device, args=args, 
+                        previous_metamask_dir = previous_metamask_dir, num_classes=2).to(device)
+            for m in model.modules():
+                if isinstance(m, DenseGATConv):
+                    torch.nn.init.kaiming_normal_(m.lin.weight, nonlinearity='relu')
+                elif isinstance(m, torch.nn.Linear):
+                    torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
         else:
             raise NotImplementedError
         
