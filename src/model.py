@@ -688,113 +688,159 @@ class Dense_mask_training_GraphConv(Dense_GraphConv):
         return x
 
 class Dense_GAT(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels,
-                 num_layers, dropout, num_classes):
-        super().__init__()
-
+    def __init__(self, in_channels, hidden_channels, num_conv_layers,
+                 dropout, num_classes=2):
+        super(Dense_GCN, self).__init__()
+        self.hidden_channels = hidden_channels
         self.convs = torch.nn.ModuleList()
-
         self.convs.append(
-            DenseGATConv(in_channels, hidden_channels,
-                         heads=4, concat=True, dropout=dropout)
-        )
-
-        for _ in range(num_layers - 2):
+            DenseGATConv(in_channels, hidden_channels))
+        for _ in range(num_conv_layers - 1):
             self.convs.append(
-                DenseGATConv(hidden_channels * 4,
-                             hidden_channels,
-                             heads=4,
-                             concat=True,
-                             dropout=dropout)
-            )
+                DenseGATConv(hidden_channels, hidden_channels))
 
-        self.convs.append(
-            DenseGATConv(hidden_channels * 4,
-                         num_classes,
-                         heads=1,
-                         concat=False,
-                         dropout=dropout)
-        )
+        self.conv_layer_norms = torch.nn.ModuleList()
+        self.conv_layer_norms.append(torch.nn.LayerNorm(100))
+        for _ in range(num_conv_layers - 1):
+            self.conv_layer_norms.append(LayerNorm(hidden_channels))        
 
+        self.lins = torch.nn.ModuleList()
+        self.lins.append(Linear(hidden_channels, num_classes))
         self.dropout = dropout
 
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
     def forward(self, x, adj):
-        for conv in self.convs[:-1]:
-            x = conv(x, adj)
-            x = torch.nn.functional.elu(x)
-            x = torch.nn.functional.dropout(
-                x, p=self.dropout, training=self.training)
-
-        x = self.convs[-1](x, adj)
-
-        # graph classification
-        x = x.mean(dim=1)
-
+        
+        for (conv, layernorm) in zip(self.convs, self.conv_layer_norms):
+                x = layernorm(x) 
+                x = conv(x, adj)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x = F.relu(x)
+        
+        x = torch.mean(x, dim=1)
+        x = self.lins[0](x)
         return x
-
 
 class Dense_mask_training_GAT(Dense_GAT):
 
-    def __init__(self, in_channels, hidden_channels, num_conv_layers,
-                 dropout, device, args, previous_metamask_dir,
-                 num_classes=2):
 
-        super().__init__(in_channels, hidden_channels,
-                         num_conv_layers, dropout, num_classes)
-
-        self.args = args
-        self.device = device
-        self.previous_dir_meta_mask = previous_metamask_dir
-
+    def __init__(self, in_channels, hidden_channels, num_conv_layers, dropout, 
+    device, args, previous_metamask_dir, num_classes=2, prune_training_mask=0.05):
+        super().__init__(in_channels, hidden_channels, num_conv_layers, dropout, num_classes)
+    
+        self.args = args 
         self.edge_mask = None
+        self.hard_edge_mask = None
+        self.previous_dir_meta_mask = previous_metamask_dir
+        self.device = device 
         self.__set_masks__()
 
-    def __set_masks__(self, num_nodes=100):
+        
+        if self.args.add_indicator_matrix:
+            if self.args.curr_idx == 0:
+                self.indicator_matrix = torch.ones_like(self.edge_mask).to(self.device)
+            else:
+                outer_exp_name = f"./results"
+                exp_name = os.path.join(outer_exp_name, self.args.dataset, self.args.model, self.args.label_col, self.args.method, self.args.pruning_mode)
+                indicator_exp = os.path.join(exp_name, 'saved_indicator_matrix', self.args.save_exp_name)
+                indicator = torch.load(os.path.join(indicator_exp, f"indicator_{self.args.curr_idx - 1}.pth"))
+                self.indicator_matrix = indicator.to(self.device)
+    
 
-        if self.args.xavier_normal_init:
-            mask = torch.empty(num_nodes, num_nodes)
-            torch.nn.init.xavier_normal_(mask)
+
+    def __set_masks__(self, num_nodes=100, x_feat_dim=100, init="normal"):
+        N = num_nodes
+        F = x_feat_dim
+
+        
+        if self.args.xavier_unif_init:
+            self.edge_mask = torch.nn.Parameter(torch.empty(N, N, requires_grad=True))
+            torch.nn.init.xavier_uniform_(self.edge_mask)
+        elif self.args.xavier_normal_init:
+            self.edge_mask = torch.nn.Parameter(torch.empty(N, N, requires_grad=True))
+            torch.nn.init.xavier_normal_(self.edge_mask)
+        elif self.args.load_from_previous:
+            if self.args.curr_idx != 0:
+                self.edge_mask = torch.load(self.previous_dir_meta_mask) 
+                    
+            else:
+                self.edge_mask = torch.nn.Parameter(torch.empty(N, N, requires_grad=True))
+                torch.nn.init.xavier_normal_(self.edge_mask)
+        elif self.args.load_from_Saliency:
+            if self.args.curr_idx != 0:
+                self.edge_mask = torch.load(self.previous_dir_meta_mask)
+                self.edge_mask = 0.4 * self.edge_mask / self.edge_mask.max().item() 
+                self.edge_mask = torch.nn.Parameter(self.edge_mask, requires_grad=True)
+                
+            else:
+                self.edge_mask = torch.nn.Parameter(torch.empty(N, N, requires_grad=True))
+                torch.nn.init.xavier_normal_(self.edge_mask)
+
         else:
-            mask = torch.randn(num_nodes, num_nodes)
-
-        self.edge_mask = torch.nn.Parameter(mask.to(self.device))
+            self.edge_mask = torch.nn.Parameter(torch.randn(N, N, requires_grad=True))
 
     def get_mask(self):
-        return self.edge_mask
+        return self.edge_mask 
+    
 
     def __loss__(self, raw_preds, label):
+        loss = cross_entropy(raw_preds, label.view(-1).long())
 
-        loss = F.cross_entropy(raw_preds, label.view(-1).long())
+        if self.args.use_original_edge_mask:
+            edge_mask = self.edge_mask 
+        elif self.args.use_symmetric_edge_mask:
+            edge_mask = self.edge_mask + self.edge_mask.T 
+        else:
+            raise NotImplementedError("Check your args")
+        
 
-        edge_mask = self.edge_mask
-
-        if self.args.mask_function == "Sigmoid":
-            edge_mask = edge_mask.sigmoid()
-        elif self.args.mask_function == "ReLU":
-            edge_mask = F.relu(edge_mask)
-
+        if self.args.add_indicator_matrix:
+            edge_mask = edge_mask * self.indicator_matrix 
+        
         if self.args.l1_after_mask:
-            loss += (
-                self.args.regularizor_mask_training *
-                torch.norm(edge_mask, p=1)
-            )
-
-        return loss
+            loss = loss + self.args.regularizor_mask_training * torch.norm(edge_mask, p=1)
+        elif self.args.sigmoid_after_mask:
+            loss = loss + self.args.regularizor_mask_training * edge_mask.sigmoid().sum()
+        else:
+            loss = loss 
+        return loss 
 
     def forward(self, x, adj, batch_label):
         raw_preds = self.model_forward(x, adj)
         return self.__loss__(raw_preds, batch_label)
 
     def model_forward(self, x, adj):
+        
+        if self.args.use_original_edge_mask:
+            edge_mask = self.edge_mask 
+        elif self.args.use_symmetric_edge_mask:
+            edge_mask = self.edge_mask + self.edge_mask.T 
+        else:
+            raise NotImplementedError("Check your args")
 
-        edge_mask = self.edge_mask
+        if self.args.add_indicator_matrix:
+            edge_mask = edge_mask * self.indicator_matrix 
 
         if self.args.mask_function == "Sigmoid":
             edge_mask = edge_mask.sigmoid()
         elif self.args.mask_function == "ReLU":
             edge_mask = F.relu(edge_mask)
+        elif self.args.mask_function == "LeakyRelu":
+            edge_mask = F.leaky_relu(edge_mask, negative_slope=0.1)
+        else:
+            raise NotImplementedError
+        
+        pruned_adj = torch.multiply(adj, edge_mask)        
 
-        # 自动 broadcast 到 batch 维度
-        pruned_adj = adj * edge_mask
-
-        return super().forward(x, pruned_adj)
+        for (conv, layernorm) in zip(self.convs, self.conv_layer_norms):
+                x = layernorm(x) 
+                x = conv(x, pruned_adj)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x = F.relu(x)
+        
+        x = torch.mean(x, dim=1)
+        x = self.lins[0](x)
+        return x
