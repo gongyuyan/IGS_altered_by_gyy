@@ -690,7 +690,7 @@ class Dense_mask_training_GraphConv(Dense_GraphConv):
 class Dense_GAT(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, num_conv_layers,
                  dropout, num_classes=2):
-        super(Dense_GCN, self).__init__()
+        super(Dense_GAT, self).__init__()
         self.hidden_channels = hidden_channels
         self.convs = torch.nn.ModuleList()
         self.convs.append(
