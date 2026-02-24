@@ -65,6 +65,9 @@ class DenseGATConv(torch.nn.Module):
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
             adj[:, idx, idx] = 1
 
+        # 🔥 加这一句
+        adj = (adj > 0).float()
+
         # ====== DEBUG 1 ======
         if self.training and self.debug:
             print("adj min/max:", adj.min().item(), adj.max().item())
