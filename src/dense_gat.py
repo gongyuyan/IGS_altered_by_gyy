@@ -27,6 +27,7 @@ class DenseGATConv(torch.nn.Module):
         self.heads = heads
         self.concat = concat
         self.negative_slope = negative_slope
+        self.debug = True
 
         # 线性映射：F -> heads * out_channels
         self.lin = Linear(in_channels, heads * out_channels, bias=False,
@@ -64,11 +65,17 @@ class DenseGATConv(torch.nn.Module):
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
             adj[:, idx, idx] = 1
 
-        # 1️⃣ 线性映射
+        # ====== DEBUG 1 ======
+        if self.training and self.debug:
+            print("adj min/max:", adj.min().item(), adj.max().item())
+            print("adj zero count:", (adj == 0).sum().item())
+            self.debug = False
+
+        # 线性映射
         x = self.lin(x)  # (B, N, heads*out_channels)
         x = x.view(B, N, self.heads, self.out_channels)
 
-        # 2️⃣ 计算 attention score
+        # 计算 attention score
         alpha_l = (x * self.att_l).sum(dim=-1)  # (B, N, heads)
         alpha_r = (x * self.att_r).sum(dim=-1)  # (B, N, heads)
 
@@ -77,12 +84,34 @@ class DenseGATConv(torch.nn.Module):
 
         alpha = F.leaky_relu(alpha, self.negative_slope)
 
-        # 3️⃣ 只在存在边的位置计算 softmax
+        # ====== DEBUG 2 ======
+        if self.training and self.debug:
+            print("alpha(before mask) mean/std:",
+                  alpha.mean().item(),
+                  alpha.std().item())
+            self.debug = False
+
+        # 只在存在边的位置计算 softmax
         alpha = alpha.masked_fill(adj.unsqueeze(-1) == 0, float('-inf'))
         alpha = F.softmax(alpha, dim=2)
 
-        # 4️⃣ 消息聚合
+        # ====== DEBUG 3 ======
+        if self.training and self.debug:
+            print("alpha(after softmax) mean/std:",
+                  alpha.mean().item(),
+                  alpha.std().item())
+            print("alpha min/max:",
+                  alpha.min().item(),
+                  alpha.max().item())
+            self.debug = False
+
+        # 消息聚合
         out = torch.einsum('bijn,bjhd->bihd', alpha, x)
+
+        # ====== DEBUG 4 ======
+        if self.training and self.debug:
+            print("out std:", out.std().item())
+            self.debug = False
 
         if self.concat:
             out = out.reshape(B, N, self.heads * self.out_channels)
