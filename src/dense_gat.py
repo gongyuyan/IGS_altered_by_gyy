@@ -65,13 +65,17 @@ class DenseGATConv(torch.nn.Module):
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
             adj[:, idx, idx] = 1
 
-        # 🔥 加这一句
-        adj = (adj > 0).float()
-
-        # ====== DEBUG 1 ======
+        # ====== 保留负边，但取绝对值作为强度 ======
+        adj_weight = adj.abs()                 # (B, N, N)
+        adj_mask = adj_weight > 0              # 结构mask
+        
+        # ====== DEBUG ======
         if self.training and self.debug:
-            print("adj min/max:", adj.min().item(), adj.max().item())
-            print("adj zero count:", (adj == 0).sum().item())
+            print("adj_weight min/max:",
+                  adj_weight.min().item(),
+                  adj_weight.max().item())
+            print("nonzero edges:",
+                  adj_mask.sum().item())
             self.debug = False
 
         # 线性映射
@@ -94,8 +98,11 @@ class DenseGATConv(torch.nn.Module):
                   alpha.std().item())
             self.debug = False
 
+        # # 只在存在边的位置计算 softmax
+        # alpha = alpha.masked_fill(adj.unsqueeze(-1) == 0, float('-inf'))
+        # alpha = F.softmax(alpha, dim=2)
         # 只在存在边的位置计算 softmax
-        alpha = alpha.masked_fill(adj.unsqueeze(-1) == 0, float('-inf'))
+        alpha = alpha.masked_fill(~adj_mask.unsqueeze(-1), -9e15)
         alpha = F.softmax(alpha, dim=2)
 
         # ====== DEBUG 3 ======
@@ -109,7 +116,11 @@ class DenseGATConv(torch.nn.Module):
             self.debug = False
 
         # 消息聚合
-        out = torch.einsum('bijn,bjhd->bihd', alpha, x)
+        # 加权 attention（结合相关强度）
+        weighted_alpha = alpha * adj_weight.unsqueeze(-1)
+        
+        out = torch.einsum('bijn,bjhd->bihd', weighted_alpha, x)
+        # out = torch.einsum('bijn,bjhd->bihd', alpha, x)
 
         # ====== DEBUG 4 ======
         if self.training and self.debug:
