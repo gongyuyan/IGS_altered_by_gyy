@@ -1,62 +1,60 @@
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Parameter
 
 from torch_geometric.nn.dense.linear import Linear
-from torch_geometric.nn.inits import zeros
+from torch_geometric.nn.inits import zeros, glorot
 from torch_geometric.typing import OptTensor
 
 
 class DenseGATConv(torch.nn.Module):
-    r"""See :class:`torch_geometric.nn.conv.GCNConv`."""
+    r"""Dense version of GATConv."""
+
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        improved: bool = False,
+        heads: int = 1,
+        concat: bool = True,
+        negative_slope: float = 0.2,
         bias: bool = True,
     ):
         super().__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.improved = improved
+        self.heads = heads
+        self.concat = concat
+        self.negative_slope = negative_slope
 
-        self.lin = Linear(in_channels, out_channels, bias=False,
+        # 线性映射：F -> heads * out_channels
+        self.lin = Linear(in_channels, heads * out_channels, bias=False,
                           weight_initializer='glorot')
 
+        # attention 参数 a = [a_l || a_r]
+        self.att_l = Parameter(torch.empty(1, heads, out_channels))
+        self.att_r = Parameter(torch.empty(1, heads, out_channels))
+
         if bias:
-            self.bias = Parameter(torch.empty(out_channels))
+            if concat:
+                self.bias = Parameter(torch.empty(heads * out_channels))
+            else:
+                self.bias = Parameter(torch.empty(out_channels))
         else:
             self.register_parameter('bias', None)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        r"""Resets all learnable parameters of the module."""
         self.lin.reset_parameters()
+        glorot(self.att_l)
+        glorot(self.att_r)
         zeros(self.bias)
 
     def forward(self, x: Tensor, adj: Tensor, mask: OptTensor = None,
                 add_loop: bool = True) -> Tensor:
-        r"""Forward pass.
 
-        Args:
-            x (torch.Tensor): Node feature tensor
-                :math:`\mathbf{X} \in \mathbb{R}^{B \times N \times F}`, with
-                batch-size :math:`B`, (maximum) number of nodes :math:`N` for
-                each graph, and feature dimension :math:`F`.
-            adj (torch.Tensor): Adjacency tensor
-                :math:`\mathbf{A} \in \mathbb{R}^{B \times N \times N}`.
-                The adjacency tensor is broadcastable in the batch dimension,
-                resulting in a shared adjacency matrix for the complete batch.
-            mask (torch.Tensor, optional): Mask matrix
-                :math:`\mathbf{M} \in {\{ 0, 1 \}}^{B \times N}` indicating
-                the valid nodes for each graph. (default: :obj:`None`)
-            add_loop (bool, optional): If set to :obj:`False`, the layer will
-                not automatically add self-loops to the adjacency matrices.
-                (default: :obj:`True`)
-        """
         x = x.unsqueeze(0) if x.dim() == 2 else x
         adj = adj.unsqueeze(0) if adj.dim() == 2 else adj
         B, N, _ = adj.size()
@@ -64,13 +62,32 @@ class DenseGATConv(torch.nn.Module):
         if add_loop:
             adj = adj.clone()
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
-            adj[:, idx, idx] = 1 if not self.improved else 2
+            adj[:, idx, idx] = 1
 
-        out = self.lin(x) # 对节点特征做线性变换，若 x 是 (B, N, F) 并且 self.lin 输出维度为 out_channels，则 out 形状为 (B, N, out_channels)
-        deg_inv_sqrt = adj.sum(dim=-1).clamp(min=1).pow(-0.5) # 计算邻接矩阵中每个节点的度的 (degree) 倒平方根： D^{-1/2}
+        # 1️⃣ 线性映射
+        x = self.lin(x)  # (B, N, heads*out_channels)
+        x = x.view(B, N, self.heads, self.out_channels)
 
-        adj = deg_inv_sqrt.unsqueeze(-1) * adj * deg_inv_sqrt.unsqueeze(-2) # 做标准的对称归一化 A' = D^{-1/2} A D^{-1/2}
-        out = torch.matmul(adj, out) # 邻接矩阵与节点特征相乘，完成消息传递
+        # 2️⃣ 计算 attention score
+        alpha_l = (x * self.att_l).sum(dim=-1)  # (B, N, heads)
+        alpha_r = (x * self.att_r).sum(dim=-1)  # (B, N, heads)
+
+        # broadcast 到 (B, N, N, heads)
+        alpha = alpha_l.unsqueeze(2) + alpha_r.unsqueeze(1)
+
+        alpha = F.leaky_relu(alpha, self.negative_slope)
+
+        # 3️⃣ 只在存在边的位置计算 softmax
+        alpha = alpha.masked_fill(adj.unsqueeze(-1) == 0, float('-inf'))
+        alpha = F.softmax(alpha, dim=2)
+
+        # 4️⃣ 消息聚合
+        out = torch.einsum('bijn,bjhd->bihd', alpha, x)
+
+        if self.concat:
+            out = out.reshape(B, N, self.heads * self.out_channels)
+        else:
+            out = out.mean(dim=2)
 
         if self.bias is not None:
             out = out + self.bias
@@ -82,4 +99,4 @@ class DenseGATConv(torch.nn.Module):
 
     def __repr__(self) -> str:
         return (f'{self.__class__.__name__}({self.in_channels}, '
-                f'{self.out_channels})')
+                f'{self.out_channels}, heads={self.heads})')
