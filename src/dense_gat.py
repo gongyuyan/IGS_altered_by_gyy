@@ -98,10 +98,9 @@ class DenseGATConv(torch.nn.Module):
                   alpha.std().item())
             self.debug = False
 
-        # # 只在存在边的位置计算 softmax
-        # alpha = alpha.masked_fill(adj.unsqueeze(-1) == 0, float('-inf'))
-        # alpha = F.softmax(alpha, dim=2)
-        # 只在存在边的位置计算 softmax
+         # 把强度融合进 attention logits
+        alpha = alpha + torch.log(adj_weight.unsqueeze(-1) + 1e-12)
+        
         alpha = alpha.masked_fill(~adj_mask.unsqueeze(-1), -9e15)
         alpha = F.softmax(alpha, dim=2)
 
@@ -115,12 +114,7 @@ class DenseGATConv(torch.nn.Module):
                   alpha.max().item())
             self.debug = False
 
-        # 消息聚合
-        # 加权 attention（结合相关强度）
-        weighted_alpha = alpha * adj_weight.unsqueeze(-1)
-        
-        out = torch.einsum('bijn,bjhd->bihd', weighted_alpha, x)
-        # out = torch.einsum('bijn,bjhd->bihd', alpha, x)
+        out = torch.einsum('bijn,bjhd->bihd', alpha, x)
 
         # ====== DEBUG 4 ======
         if self.training and self.debug:
