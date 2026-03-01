@@ -813,34 +813,34 @@ class Dense_mask_training_GAT(Dense_GAT):
         return self.__loss__(raw_preds, batch_label)
 
     def model_forward(self, x, adj):
-        
+    
+        # 1️⃣ 取 mask
         if self.args.use_original_edge_mask:
-            edge_mask = self.edge_mask 
+            edge_mask = self.edge_mask
         elif self.args.use_symmetric_edge_mask:
-            edge_mask = self.edge_mask + self.edge_mask.T 
+            edge_mask = self.edge_mask + self.edge_mask.T
         else:
             raise NotImplementedError("Check your args")
-
+    
+        # 2️⃣ indicator
         if self.args.add_indicator_matrix:
-            edge_mask = edge_mask * self.indicator_matrix 
-
-        if self.args.mask_function == "Sigmoid":
-            edge_mask = edge_mask.sigmoid()
-        elif self.args.mask_function == "ReLU":
-            edge_mask = F.relu(edge_mask)
-        elif self.args.mask_function == "LeakyRelu":
-            edge_mask = F.leaky_relu(edge_mask, negative_slope=0.1)
-        else:
-            raise NotImplementedError
-        
-        pruned_adj = torch.multiply(adj, edge_mask)        
-
+            edge_mask = edge_mask * self.indicator_matrix
+    
+        # 3️⃣ 强制数值稳定（关键修改点）
+        edge_mask = torch.sigmoid(edge_mask)          # 限制到 (0,1)
+        edge_mask = edge_mask / (edge_mask.mean().detach() + 1e-6)
+        # ↑ 保证整体 scale ≈ 1，避免 attention 爆炸
+    
+        # 4️⃣ 应用 mask
+        pruned_adj = adj * edge_mask
+    
+        # 5️⃣ GAT forward
         for (conv, layernorm) in zip(self.convs, self.conv_layer_norms):
-                x = layernorm(x) 
-                x = conv(x, pruned_adj)
-                x = F.dropout(x, p=self.dropout, training=self.training)
-                x = F.relu(x)
-        
+            x = layernorm(x)
+            x = conv(x, pruned_adj)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.relu(x)
+    
         x = torch.mean(x, dim=1)
         x = self.lins[0](x)
         return x
