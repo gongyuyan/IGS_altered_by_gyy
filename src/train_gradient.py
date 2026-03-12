@@ -24,7 +24,7 @@ def Gradient_iteration(args):
     model_dir = os.path.join(model_sub_dir, model_name)
     if args.debug_mode:
         print("model dir: ", model_dir)
-    model = torch.load(model_dir)
+    model = torch.load(model_dir, weights_only=False)
     model = model.to(device)
 
     data_directory = f"./data/normalized_edge_dataSplits{args.dataSplit}/{args.label_col}"
