@@ -135,6 +135,9 @@ if __name__ == "__main__":
     parser.add_argument("--load_from_previous", action="store_true", default=False)
     parser.add_argument("--load_from_Saliency", action="store_true", default=False)
     parser.add_argument("--sigmoid_after_mask", action="store_true", default=False)
+
+    parser.add_argument("--degree_lambda", type=float, default=0.01) # 度系数
+    
     args = parser.parse_args()
     # print(args)
     meta_exp(args)
