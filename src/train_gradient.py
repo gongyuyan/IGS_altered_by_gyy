@@ -168,7 +168,7 @@ def Gradient_iteration(args):
     pruned_val_adj = normalize_edge(pruned_val_adj)
     pruned_test_adj = normalize_edge(pruned_test_adj)
    
-    exp_saved_name = f"pruned_edges{curr_idx}.npy"
+    exp_saved_name = f"pruned_edges{curr_idx-1}.npy"
     if args.debug_mode:
         print(f"{exp_saved_name} saved for train/val/test!")
     # saved_sub_dir = os.path.join('./data/pruned_edges', args.save_exp_name)
