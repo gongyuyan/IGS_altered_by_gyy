@@ -106,6 +106,13 @@ def Gradient_iteration(args):
     meta_mask_1 = torch.where(saliency_unified_1 < threshold_value_1, 0, 1)
     meta_mask_0 = meta_mask_0.cpu().numpy()
     meta_mask_1 = meta_mask_1.cpu().numpy()
+
+    # ---------- compute node degree ----------
+    avg_adj = torch.from_numpy(train_adj).float().mean(dim=0).to(device)
+    node_degree = avg_adj.sum(dim=1)
+    degree_matrix = node_degree.unsqueeze(1) + node_degree.unsqueeze(0)
+    degree_matrix = degree_matrix / degree_matrix.max() # normalize
+    lambda_degree = args.degree_lambda
     
     if args.metaMask_0:
         saved_saliency_map = saliency_unified_0.cpu()
@@ -119,14 +126,6 @@ def Gradient_iteration(args):
         threshold_two = torch.quantile(saliency_two_avg, args.prune_threshold).item()
         meta_mask = torch.where(saliency_two_avg < threshold_two, 0, 1).cpu().numpy()
     elif args.metaMask_Sum:
-        # ---------- compute node degree ----------
-        avg_adj = torch.from_numpy(train_adj).float().mean(dim=0).to(device)
-        node_degree = avg_adj.sum(dim=1)
-        degree_matrix = node_degree.unsqueeze(1) + node_degree.unsqueeze(0)
-        # normalize (非常重要)
-        degree_matrix = degree_matrix / degree_matrix.max()
-        lambda_degree = args.degree_lambda
-        # ---------- combine saliency and degree ----------
         saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix
         saved_saliency_map = saliency_two_sum.cpu()
         threshold_two = torch.quantile(saliency_two_sum, args.prune_threshold).item()
