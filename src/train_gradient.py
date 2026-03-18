@@ -55,12 +55,28 @@ def Gradient_iteration(args):
 
     saliency_map_0_builder = []
     saliency_map_1_builder = []
+    embedding_builder = []   # ⭐添加3.18.1
 
 
     for i in range(train_adj.shape[0]):  
         curr_edge = torch.unsqueeze(torch.from_numpy(train_adj[i]).float().to(device) ,dim=0)
         curr_edge.requires_grad=True 
         curr_x = torch.unsqueeze(torch.eye(100), dim=0).to(device)
+
+        # ⭐ 添加3.18.2
+        first_layer_embedding = []
+        
+        def hook_fn(module, input, output):
+            first_layer_embedding.append(output.detach())
+        
+        handle = model.convs[0].register_forward_hook(hook_fn)
+        
+        _ = model(curr_x, curr_edge)   # forward 一次拿 embedding
+        
+        handle.remove()
+        
+        embedding_builder.append(first_layer_embedding[0].squeeze(0))  # [N, F]
+        #-----------------------添加结束-------------------------------------------
         
         saliency_0 = iterative_saliency_map(model=model, edge=curr_edge, x=curr_x, target=0)
         saliency_1 = iterative_saliency_map(model=model, edge=curr_edge, x=curr_x, target=1)
@@ -113,6 +129,18 @@ def Gradient_iteration(args):
     degree_matrix = node_degree.unsqueeze(1) + node_degree.unsqueeze(0)
     degree_matrix = degree_matrix / degree_matrix.max() # normalize
     lambda_degree = args.degree_lambda
+    # ---------- compute embedding similarity ----------⭐添加3.18.3
+    embeddings = torch.stack(embedding_builder)   # [num_graph, N, F]
+    mean_emb = embeddings.mean(dim=0)             # [N, F]
+    
+    norm_emb = F.normalize(mean_emb, dim=1)
+    sim_matrix = torch.matmul(norm_emb, norm_emb.T)
+    sim_matrix = sim_matrix * (avg_adj > 0)
+    
+    sim_matrix = sim_matrix / sim_matrix.max()
+    
+    lambda_sim = args.similarity_lambda   # 新增参数
+    #------------------添加结束-------------------------------
     
     if args.metaMask_0:
         saved_saliency_map = saliency_unified_0.cpu()
@@ -126,7 +154,7 @@ def Gradient_iteration(args):
         threshold_two = torch.quantile(saliency_two_avg, args.prune_threshold).item()
         meta_mask = torch.where(saliency_two_avg < threshold_two, 0, 1).cpu().numpy()
     elif args.metaMask_Sum:
-        saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix
+        saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix + lambda_sim * sim_matrix   #⭐添加3.18.4
         saved_saliency_map = saliency_two_sum.cpu()
         threshold_two = torch.quantile(saliency_two_sum, args.prune_threshold).item()
         meta_mask = torch.where(saliency_two_sum < threshold_two, 0, 1).cpu().numpy()
