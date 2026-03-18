@@ -2,6 +2,7 @@ import numpy as np
 import torch 
 import os 
 from utils import * 
+import torch.nn.functional as F
 
 def Gradient_iteration(args):
     device = f'cuda' if torch.cuda.is_available() else 'cpu'
