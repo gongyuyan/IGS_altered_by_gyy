@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from model import * 
 from utils import * 
 import matplotlib.pyplot as plt # 添加1.1
+from sklearn.metrics import roc_auc_score # 添加3.24.1
 
 
 @torch.no_grad()
@@ -17,6 +18,35 @@ def test_dense(model, batch_x, batch_edge, batch_label, criterion, args, ):
 
     return torch.eq(batch_label.view(-1).int(), y_pred).sum().item(), len(y_pred), loss 
 
+# 添加3.24.2------------------------------------------------------------------------
+@torch.no_grad()
+def test_dense_auc(model, loader, device):
+    model.eval()
+    
+    all_probs = []
+    all_labels = []
+
+    for batch in loader:
+        batch_edge, batch_label = batch 
+        batch_size = batch_edge.shape[0]
+        batch_x = torch.eye(100).repeat(batch_size, 1, 1).to(device)
+
+        out = model(batch_x, batch_edge.float())
+        prob = torch.softmax(out, dim=-1)[:, 1]  # 取正类概率
+
+        all_probs.append(prob.cpu())
+        all_labels.append(batch_label.view(-1).cpu())
+
+    all_probs = torch.cat(all_probs).numpy()
+    all_labels = torch.cat(all_labels).numpy()
+
+    try:
+        auc = roc_auc_score(all_labels, all_probs)
+    except:
+        auc = 0.5  # 防止极端情况（比如只有一个类别）
+
+    return auc
+# 添加结束-------------------------------------------------------
 
 def dense_training(args, gnn_explain_training=False):
     outer_exp_name = f"./results"
@@ -132,6 +162,7 @@ def dense_training(args, gnn_explain_training=False):
     
     smallest_val_loss = float('inf')
     smallest_val_loss_corresponding_test_acc = 0
+    best_auc = 0 # 添加3.24.3
     epochs_without_improvement = 0 # 添加2.1
     
     train_loss_history = [] # 添加1.2.1，收集损失
@@ -211,6 +242,7 @@ def dense_training(args, gnn_explain_training=False):
         if val_loss < smallest_val_loss: 
             smallest_val_loss_corresponding_test_acc = test_acc 
             smallest_val_loss = val_loss 
+            best_auc = test_dense_auc(model, test_loader, device) # 添加3.24.4
 
             epochs_without_improvement = 0
 
@@ -233,7 +265,10 @@ def dense_training(args, gnn_explain_training=False):
     
     if args.curr_idx != 0:
         smallest_val_loss = smallest_val_loss.item()
-    print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, Smallest Validation Loss {smallest_val_loss}")
+    # print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, Smallest Validation Loss {smallest_val_loss}")
+    print(f"Smallest Validation Loss Corresponding Test Accuracy {smallest_val_loss_corresponding_test_acc}, "
+      f"Smallest Validation Loss {smallest_val_loss}, AUC {best_auc}") # 添加3.24.5
+
     
     # 添加1.4，绘制损失曲线
     # ========== 绘制损失曲线 ==========
