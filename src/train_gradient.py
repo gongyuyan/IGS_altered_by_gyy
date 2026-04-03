@@ -76,7 +76,7 @@ def Gradient_iteration(args):
         
         handle.remove()
         
-        embedding_builder.append(first_layer_embedding[0].squeeze(0))  # [N, F]
+        embedding_builder.append(first_layer_embedding[0].squeeze(0))  # [N, hid]
         #-----------------------添加结束-------------------------------------------
         
         saliency_0 = iterative_saliency_map(model=model, edge=curr_edge, x=curr_x, target=0)
