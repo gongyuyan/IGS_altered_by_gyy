@@ -155,15 +155,13 @@ def Gradient_iteration(args):
         threshold_two = torch.quantile(saliency_two_avg, args.prune_threshold).item()
         meta_mask = torch.where(saliency_two_avg < threshold_two, 0, 1).cpu().numpy()
     elif args.metaMask_Sum:
-        saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix + lambda_sim * sim_matrix   #⭐添加3.18.4
+        gradient_matrix = saliency_unified_0 + saliency_unified_1 #添加4.4.1
+        gradient_matrix = gradient_matrix / gradient_matrix.max() #添加4.4.2
+        saliency_two_sum = gradient_matrix - lambda_degree * degree_matrix + lambda_sim * sim_matrix  #添加4.4.3
+        # saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix + lambda_sim * sim_matrix   #⭐添加3.18.4
         saved_saliency_map = saliency_two_sum.cpu()
         threshold_two = torch.quantile(saliency_two_sum, args.prune_threshold).item()
         meta_mask = torch.where(saliency_two_sum < threshold_two, 0, 1).cpu().numpy()
-        # # 原来的4行：
-        # saliency_two_sum = saliency_unified_0 + saliency_unified_1 
-        # saved_saliency_map = saliency_two_sum.cpu()
-        # threshold_two = torch.quantile(saliency_two_sum, args.prune_threshold).item()
-        # meta_mask = torch.where(saliency_two_sum < threshold_two, 0, 1).cpu().numpy()
     elif args.metaMask_AbSum:
         saliency_two_abs_sum = torch.abs(saliency_unified_0) + torch.abs(saliency_unified_1)
         saved_saliency_map = saliency_two_abs_sum.cpu()
