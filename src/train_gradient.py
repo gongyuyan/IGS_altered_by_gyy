@@ -128,7 +128,7 @@ def Gradient_iteration(args):
     avg_adj = torch.from_numpy(train_adj).float().mean(dim=0).to(device)
     node_degree = avg_adj.sum(dim=1)
     degree_matrix = node_degree.unsqueeze(1) + node_degree.unsqueeze(0)
-    degree_matrix = degree_matrix / degree_matrix.max() # normalize
+    # degree_matrix = degree_matrix / degree_matrix.max() # normalize
     lambda_degree = args.degree_lambda
     # ---------- compute embedding similarity ----------⭐添加3.18.3
     embeddings = torch.stack(embedding_builder)   # [num_graph, N, F]
@@ -138,7 +138,7 @@ def Gradient_iteration(args):
     sim_matrix = torch.matmul(norm_emb, norm_emb.T)
     sim_matrix = sim_matrix * (avg_adj > 0)
     
-    sim_matrix = sim_matrix / sim_matrix.max()
+    # sim_matrix = sim_matrix / sim_matrix.max()
     
     lambda_sim = args.similarity_lambda   # 新增参数
     #------------------添加结束-------------------------------
@@ -156,7 +156,7 @@ def Gradient_iteration(args):
         meta_mask = torch.where(saliency_two_avg < threshold_two, 0, 1).cpu().numpy()
     elif args.metaMask_Sum:
         gradient_matrix = saliency_unified_0 + saliency_unified_1 #添加4.4.1
-        gradient_matrix = gradient_matrix / gradient_matrix.max() #添加4.4.2
+        # gradient_matrix = gradient_matrix / gradient_matrix.max() #添加4.4.2
         saliency_two_sum = gradient_matrix - lambda_degree * degree_matrix + lambda_sim * sim_matrix  #添加4.4.3
         # saliency_two_sum = saliency_unified_0 + saliency_unified_1 - lambda_degree * degree_matrix + lambda_sim * sim_matrix   #⭐添加3.18.4
         saved_saliency_map = saliency_two_sum.cpu()
