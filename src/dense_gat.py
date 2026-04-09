@@ -64,7 +64,8 @@ class DenseGATConv(torch.nn.Module):
         if add_loop:
             adj = adj.clone()
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
-            adj[:, idx, idx] = 1
+            # adj[:, idx, idx] = 1
+            adj[idx, idx] = 1.0
 
         # ====== 保留负边，但取绝对值作为强度 ======
         adj_weight = adj.abs()                 # (B, N, N)
