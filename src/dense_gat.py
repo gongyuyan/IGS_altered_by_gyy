@@ -64,8 +64,7 @@ class DenseGATConv(torch.nn.Module):
         if add_loop:
             adj = adj.clone()
             idx = torch.arange(N, dtype=torch.long, device=adj.device)
-            # adj[:, idx, idx] = 1
-            adj[idx, idx] = 1.0
+            adj[:, idx, idx] = 1
 
         # ====== 保留负边，但取绝对值作为强度 ======
         adj_weight = adj.abs()                 # (B, N, N)
@@ -101,7 +100,7 @@ class DenseGATConv(torch.nn.Module):
         #     self.debug = False
 
          # 把强度融合进 attention logits
-        # alpha = alpha + torch.log(adj_weight.unsqueeze(-1) + 1e-12)
+        alpha = alpha + torch.log(adj_weight.unsqueeze(-1) + 1e-12)
         
         alpha = alpha.masked_fill(~adj_mask.unsqueeze(-1), -9e15)
         alpha = F.softmax(alpha, dim=2)
