@@ -100,7 +100,7 @@ class DenseGATConv(torch.nn.Module):
         #     self.debug = False
 
          # 把强度融合进 attention logits
-        alpha = alpha + 0.01 * torch.log(adj_weight.unsqueeze(-1) + 1e-12)
+        alpha = alpha + 0.1 * torch.log(adj_weight.unsqueeze(-1) + 1e-12)
         
         alpha = alpha.masked_fill(~adj_mask.unsqueeze(-1), -9e15)
         alpha = F.softmax(alpha, dim=2)
